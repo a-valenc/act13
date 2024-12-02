@@ -1,10 +1,9 @@
 ---
 - name: Configure Controller Node
-  hosts: controller
+  hosts: all
   become: yes
 
   tasks:
-    # NTP
     - name: Install NTP package
       apt:
         name: chrony
@@ -26,13 +25,14 @@
         state: restarted
         enabled: yes
 
-    # OpenStack Packages
-    - name: Add OpenStack repository
-      apt_repository:
-        repo: "deb http://ubuntu-cloud.archive.canonical.com/ubuntu jammy-updates yoga main"
-        state: present
+    - name: Add OpenStack Zed repository using cloud-archive
+      command: "add-apt-repository -y cloud-archive:zed"
 
-    - name: Update apt cache and install prerequisites
+    - name: Update apt cache
+      apt:
+        update_cache: yes
+
+    - name: Install OpenStack client and prerequisites
       apt:
         name:
           - software-properties-common
@@ -40,7 +40,6 @@
           - python3-pip
         state: present
 
-    # SQL Database
     - name: Install MariaDB server
       apt:
         name: mariadb-server
@@ -50,7 +49,7 @@
       debconf:
         name: mariadb-server
         question: "mysql-server/root_password"
-        value: "secure_root_password"
+        value: "4704"
         vtype: "password"
 
     - name: Restart MariaDB
@@ -59,22 +58,20 @@
         state: restarted
         enabled: yes
 
-    # Message Queue
     - name: Install RabbitMQ
       apt:
         name: rabbitmq-server
         state: present
 
     - name: Set RabbitMQ user password
-      command: "rabbitmqctl change_password guest secure_rabbitmq_password"
+      command: "rabbitmqctl change_password guest 4704"
 
-    # Memcached
     - name: Install memcached
       apt:
         name: memcached
         state: present
 
-    - name: Configure memcached to listen on specific IP
+    - name: Configure memcached IP
       lineinfile:
         path: /etc/memcached.conf
         regexp: '-l 127.0.0.1'
@@ -86,7 +83,6 @@
         state: restarted
         enabled: yes
 
-    # Etcd
     - name: Install etcd
       apt:
         name: etcd
@@ -111,42 +107,10 @@
         enabled: yes
 
 - name: Configure Compute Node
-  hosts: compute
+  hosts: all
   become: yes
 
   tasks:
-    # NTP
-    - name: Install NTP package
+    - name: Refresh the apt cache
       apt:
-        name: chrony
-        state: present
-
-    - name: Configure NTP servers
-      lineinfile:
-        path: /etc/chrony/chrony.conf
-        regexp: '^pool '
-        line: "pool {{ item }}"
-        state: present
-      with_items:
-        - 0.ubuntu.pool.ntp.org
-        - 1.ubuntu.pool.ntp.org
-
-    - name: Restart NTP service
-      service:
-        name: chrony
-        state: restarted
-        enabled: yes
-
-    # OpenStack Packages
-    - name: Add OpenStack repository
-      apt_repository:
-        repo: "deb http://ubuntu-cloud.archive.canonical.com/ubuntu jammy-updates yoga main"
-        state: present
-
-    - name: Update apt cache and install prerequisites
-      apt:
-        name:
-          - software-properties-common
-          - python3-openstackclient
-          - python3-pip
-        state: present
+        update_cache: yes
